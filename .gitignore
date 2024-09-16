@@ -2,3 +2,4 @@ input.numbers
 input.xlsx
 output_summary.xlsx
 .env
+.DS_Store
