@@ -1,9 +1,9 @@
 import pandas as pd
-import os
 import openai
+import streamlit as st
 
 ## Get key from env variable
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 def summarize_text(text):
     """Function to use GPT-4 to summarize a given text."""
@@ -60,12 +60,11 @@ def is_allowed(text, keyword="coffee"):
         return "Error"
 
 
-def process_excel(file_path, column_name, output_path, column_title, search_term=None):
-    df = pd.read_excel(file_path)
+def process_excel(file, column_name, column_title, search_term=None):
+    df = pd.read_excel(file)
     results = []
 
     for index, row in df.iterrows():
-
         row_title = str(row[column_title])
         cell_text = str(row[column_name])
 
@@ -76,18 +75,38 @@ def process_excel(file_path, column_name, output_path, column_title, search_term
         
         results.append({
             'Location Name': row_title,
-            'Coffee Allowed':  is_allowed(cell_text, "coffee"),
+            'Coffee Allowed': is_allowed(cell_text, "coffee"),
             'Summary': summary,
         })
     
     results_df = pd.DataFrame(results)
-    results_df.to_excel(output_path, index=False)
+    return results_df
 
+# Streamlit app UI
+st.title("Excel Processor: Coffee Clause Analysis")
 
-input_file = 'input.xlsx'
-column_to_search = 'Clause' 
-output_file = 'output_summary.xlsx'
-search_keyword = 'coffee'
-column_title = 'Location Name'
+uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
+column_to_search = st.text_input("Enter the column name to search (e.g., 'Clause')", value="Clause")
+column_title = st.text_input("Enter the column name for titles (e.g., 'Location Name')", value="Location Name")
+search_keyword = st.text_input("Enter a search keyword (e.g., 'coffee')", value="coffee")
 
-process_excel(input_file, column_to_search, output_file, column_title, search_term=search_keyword)
+if uploaded_file and column_to_search and column_title:
+    if st.button("Process File"):
+        with st.spinner("Processing... Please wait."):
+            # Process the uploaded file
+            result_df = process_excel(uploaded_file, column_to_search, column_title, search_term=search_keyword)
+            
+            # Display the result DataFrame
+            st.write("Processing complete! Here are the results:")
+            st.dataframe(result_df)
+
+            # Provide a download link for the processed file
+            output_file = "output_summary.xlsx"
+            result_df.to_excel(output_file, index=False)
+            with open(output_file, "rb") as file:
+                st.download_button(
+                    label="Download Processed File",
+                    data=file,
+                    file_name="output_summary.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
