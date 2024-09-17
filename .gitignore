@@ -4,3 +4,5 @@ output_summary.xlsx
 .env
 .DS_Store
 secrets.toml
+format.py
+Book3.xlsx

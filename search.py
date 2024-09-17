@@ -5,96 +5,110 @@ import streamlit as st
 ## Get key from env variable
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-def summarize_text(text):
-    """Function to use GPT-4 to summarize a given text."""
-    try:
-        chat_completion = openai.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Summarize the following text in a few words:\n\n{text}",
-                },
-                {   
-                    "role": "system", 
-                    "content": "You are a helpful assistant that summarizes text."
-                }
-            ],
-            model="gpt-4o",
-            max_tokens=100
-        )
-        
-        return chat_completion.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"Error summarizing text: {e}")
-        return ""
-    
-    
-def is_allowed(text, keyword="coffee"):
-    """Function to determine if keyword is allowed in the given text."""
+def analyze_prohibited_use(text):
+    """Analyzes the 'Prohibited Use' clause for coffee/espresso prohibition."""
     try:
         chat_completion = openai.chat.completions.create(
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant that answers questions with 'Yes' or 'No'."
+                    "content": "You are an expert in writing and reviewing commercial real estate lease contracts with a specialty in permitted use."
                 },
                 {
                     "role": "user",
-                    "content": f"Based on the following text, is {keyword} allowed?  Please answer 'Yes' if coffee preparation is allowed under any circumstances, even with conditions. Answer 'No' if it is strictly prohibited without any conditions.\n\n{text}"
+                    "content": f"{prohibited_use_prompt}\n\n{text}"
                 }
             ],
-            max_tokens=3,
             model="gpt-4o",
-            temperature=0  # Ensures deterministic responses
+            max_tokens=10,
+            temperature=0
         )
-        answer = chat_completion.choices[0].message.content.strip()
-        # Normalize the answer to "Yes" or "No"
-        if "yes" in answer.lower():
-            return "Yes"
-        elif "no" in answer.lower():
-            return "No"
-        else:
-            return "Uncertain"
+        return chat_completion.choices[0].message.content.strip()
     except Exception as e:
-        print(f"Error determining if coffee is allowed: {e}")
+        print(f"Error analyzing prohibited use: {e}")
         return "Error"
 
+def analyze_use_clause(text):
+    """Analyzes the 'Use' clause for coffee/espresso allowance."""
+    try:
+        chat_completion = openai.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert in writing and reviewing commercial real estate lease contracts with a specialty in permitted use."
+                },
+                {
+                    "role": "user",
+                    "content": f"{use_clause_prompt}\n\n{text}"
+                }
+            ],
+            model="gpt-4o",
+            max_tokens=10,
+            temperature=0
+        )
+        return chat_completion.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Error analyzing use clause: {e}")
+        return "Error"
 
-def process_excel(file, column_name, column_title, search_term=None):
+def process_excel(file, location_column, clause_type_column, clause_language_column):
     df = pd.read_excel(file)
     results = []
+    
+    ## log out the location column
+    print(df[location_column])
 
-    for index, row in df.iterrows():
-        row_title = str(row[column_title])
-        cell_text = str(row[column_name])
+    # Grouping by location
+    grouped = df.groupby(location_column)
+    
+    print(grouped)
 
-        if search_term and search_term.lower() not in cell_text.lower():
-            continue
-
-        summary = summarize_text(cell_text)
+    for location, group in grouped:
+        prohibited_use_result = "Not Found"
+        use_clause_result = "Not Found"
         
+        # Check for 'Prohibited Use' clause
+        prohibited_rows = group[group[clause_type_column] == "Prohibited Use"]
+        if not prohibited_rows.empty:
+            for index, row in prohibited_rows.iterrows():
+                clause_text = str(row[clause_language_column])
+                prohibited_use_result = analyze_prohibited_use(clause_text)
+                break  # Consider only the first "Prohibited Use" clause
+        
+        # Check for 'Use' clause
+        use_rows = group[group[clause_type_column] == "Use"]
+        if not use_rows.empty:
+            for index, row in use_rows.iterrows():
+                clause_text = str(row[clause_language_column])
+                use_clause_result = analyze_use_clause(clause_text)
+                break  # Consider only the first "Use" clause
+        
+        # Append results for each location
         results.append({
-            'Location Name': row_title,
-            'Coffee Allowed': is_allowed(cell_text, "coffee"),
-            'Summary': summary,
+            'Location Name': location,
+            'Prohibited Use': prohibited_use_result,
+            'Use Clause': use_clause_result
         })
     
+    # Convert results to a DataFrame
     results_df = pd.DataFrame(results)
     return results_df
 
 # Streamlit app UI
-st.title("Excel Processor: Coffee Clause Analysis")
+st.title("Clause Analysis")
 
 uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
-column_to_search = st.text_input("Enter the column name to search (e.g., 'Clause')", value="Clause")
-column_title = st.text_input("Enter the column name for titles (e.g., 'Location Name')", value="Location Name")
-search_keyword = st.text_input("Enter a search keyword (e.g., 'coffee')", value="coffee")
+location_column = st.text_input("Enter the column name for location (e.g., 'Location Name')", value="LOCATION")
+clause_type_column = st.text_input("Enter the column name for clause type (e.g., 'Critical Clause Type')", value="Critical Clause Type")
+clause_language_column = st.text_input("Enter the column name for clause language (e.g., 'Clause')", value="Critical Clause Language")
+prohibited_use_prompt = st.text_input("Prohibited Use Prompt:", value="Determine if the lease prohibits the sale of coffee and/or espresso products at the location based solely on the exact contractual language. Return the result of the analysis on the ability to sell coffee and/or espresso (Prohibited, Not Prohibited).")
+use_clause_prompt = st.text_input("Use Clause Prompt:", value="Determine what the language here is stating about coffee as it relates to the tenant selling coffee, based solely on the exact contractual language. Return the result of the analysis on the ability to sell coffee and/or espresso. Return either Allowed, Prohibited, Inconclusive.")
 
-if uploaded_file and column_to_search and column_title:
+if uploaded_file and location_column and clause_type_column and clause_language_column:
     if st.button("Process File"):
         with st.spinner("Processing... Please wait."):
-            # Process the uploaded file
-            result_df = process_excel(uploaded_file, column_to_search, column_title, search_term=search_keyword)
+            # Process the uploaded file with corrected column references
+            result_df = process_excel(uploaded_file, location_column, clause_type_column, clause_language_column)
             
             # Display the result DataFrame
             st.write("Processing complete! Here are the results:")
