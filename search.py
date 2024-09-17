@@ -54,9 +54,6 @@ def analyze_use_clause(text):
 def process_excel(file, location_column, clause_type_column, clause_language_column):
     df = pd.read_excel(file)
     results = []
-    
-    ## log out the location column
-    print(df[location_column])
 
     # Grouping by location
     grouped = df.groupby(location_column)
@@ -101,8 +98,8 @@ uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
 location_column = st.text_input("Enter the column name for location (e.g., 'Location Name')", value="LOCATION")
 clause_type_column = st.text_input("Enter the column name for clause type (e.g., 'Critical Clause Type')", value="Critical Clause Type")
 clause_language_column = st.text_input("Enter the column name for clause language (e.g., 'Clause')", value="Critical Clause Language")
-prohibited_use_prompt = st.text_input("Prohibited Use Prompt:", value="Determine if the lease prohibits the sale of coffee and/or espresso products at the location based solely on the exact contractual language. Return the result of the analysis on the ability to sell coffee and/or espresso (Prohibited, Not Prohibited).")
-use_clause_prompt = st.text_input("Use Clause Prompt:", value="Determine what the language here is stating about coffee as it relates to the tenant selling coffee, based solely on the exact contractual language. Return the result of the analysis on the ability to sell coffee and/or espresso. Return either Allowed, Prohibited, Inconclusive.")
+prohibited_use_prompt = st.text_area("Prohibited Use Prompt:", value="Determine if the lease prohibits the sale of coffee and/or espresso products at the location based solely on the exact contractual language. Return the result of the analysis on the ability to sell coffee and/or espresso (Prohibited, Not Prohibited). Return only the word 'Prohibited' or 'Not Prohibited'.")
+use_clause_prompt = st.text_area("Use Clause Prompt:", value="Determine what the language here is stating about coffee as it relates to the tenant selling coffee, based solely on the exact contractual language. Return the result of the analysis on the ability to sell coffee and/or espresso. Return only the word 'Allowed', 'Prohibited' or 'Inconclusive'.")
 
 if uploaded_file and location_column and clause_type_column and clause_language_column:
     if st.button("Process File"):
